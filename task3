@@ -1,0 +1,75 @@
+# ============================================
+# COMPLETE CODE: PART 1 + PART 2 (Task 3 & 4)
+# ============================================
+
+import pandas as pd
+import numpy as np
+import re
+import nltk
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Download stopwords
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
+
+# --------------------------------------------------
+# PART 1: Load & Preprocess
+# --------------------------------------------------
+
+# Load dataset
+df = pd.read_csv('tmdb_5000_movies.csv')
+
+# Keep only required columns
+df = df[['id', 'title', 'overview', 'genres']].copy()
+
+# Handle missing values (replace with empty string)
+df['overview'] = df['overview'].fillna('')
+
+# Text preprocessing function
+def preprocess_text(text):
+    text = str(text).lower()
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    tokens = text.split()
+    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+    return " ".join(tokens)
+
+# Create clean_text column
+df['clean_text'] = df['overview'].apply(preprocess_text)
+
+print("Data loaded and preprocessed successfully!")
+print(f"Shape: {df.shape}")
+print(df[['title', 'clean_text']].head(3))
+
+# --------------------------------------------------
+# PART 2 - Task 3: TF-IDF Vectorization
+# --------------------------------------------------
+
+tfidf = TfidfVectorizer(
+    max_features=5000,
+    ngram_range=(1, 2),
+    min_df=2
+)
+
+tfidf_matrix = tfidf.fit_transform(df['clean_text'])
+
+print("\n" + "="*50)
+print("TF-IDF MATRIX SHAPE")
+print("="*50)
+print(f"Shape of TF-IDF matrix: {tfidf_matrix.shape}")
+
+# --------------------------------------------------
+# PART 2 - Task 4: Cosine Similarity
+# --------------------------------------------------
+
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+
+print("\n" + "="*50)
+print("COSINE SIMILARITY MATRIX")
+print("="*50)
+print(f"Shape of Cosine Similarity matrix: {cosine_sim.shape}")
+print("\nSample (first 5x5):")
+print(pd.DataFrame(cosine_sim[:5, :5], 
+                   index=df['title'][:5], 
+                   columns=df['title'][:5]).round(3))

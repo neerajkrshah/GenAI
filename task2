@@ -1,0 +1,54 @@
+# ============================================
+# Handle Missing Values + Store Cleaned Text
+# ============================================
+
+import pandas as pd
+import numpy as np
+import re
+import nltk
+from nltk.corpus import stopwords
+
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
+
+# Load dataset
+df = pd.read_csv('tmdb_5000_movies.csv')
+
+# Keep only useful columns
+df = df[['id', 'title', 'overview', 'genres']].copy()
+
+# --------------------------------------------------
+# 4. Handle missing values (replace with empty string)
+# --------------------------------------------------
+df['overview'] = df['overview'].fillna('')          # Replace NaN with empty string
+
+# --------------------------------------------------
+# Text Preprocessing Function
+# --------------------------------------------------
+def preprocess_text(text):
+    """
+    1. Convert to lowercase
+    2. Remove punctuation and special characters
+    3. Remove stopwords
+    """
+    text = str(text).lower()                         # lowercase
+    text = re.sub(r'[^a-zA-Z\s]', '', text)          # remove punctuation & special chars
+    tokens = text.split()
+    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+    return " ".join(tokens)
+
+# --------------------------------------------------
+# Store cleaned text in a new column: clean_text
+# --------------------------------------------------
+df['clean_text'] = df['overview'].apply(preprocess_text)
+
+# Optional: also clean genres if you want to use them later
+# df['genres'] = df['genres'].fillna('')
+
+print("Missing values handled (replaced with empty string).")
+print("Cleaned text stored in new column: 'clean_text'")
+print("\nSample of cleaned data:")
+print(df[['title', 'overview', 'clean_text']].head(5))
+
+print(f"\nFinal shape: {df.shape}")
+print(f"Columns: {df.columns.tolist()}")

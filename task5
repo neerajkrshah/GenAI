@@ -1,0 +1,100 @@
+# ============================================
+# COMPLETE MOVIE RECOMMENDATION SYSTEM
+# PART 1 + PART 2 + PART 3 (Task 5)
+# ============================================
+
+import pandas as pd
+import numpy as np
+import re
+import nltk
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Download stopwords
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
+
+# --------------------------------------------------
+# PART 1: Load & Preprocess
+# --------------------------------------------------
+df = pd.read_csv('tmdb_5000_movies.csv')
+
+df = df[['id', 'title', 'overview', 'genres']].copy()
+df['overview'] = df['overview'].fillna('')
+
+def preprocess_text(text):
+    text = str(text).lower()
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    tokens = text.split()
+    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+    return " ".join(tokens)
+
+df['clean_text'] = df['overview'].apply(preprocess_text)
+
+print("PART 1 Done - Data loaded and cleaned")
+print("Shape:", df.shape)
+
+# --------------------------------------------------
+# PART 2: TF-IDF + Cosine Similarity
+# --------------------------------------------------
+tfidf = TfidfVectorizer(
+    max_features=5000,
+    ngram_range=(1, 2),
+    min_df=2
+)
+
+tfidf_matrix = tfidf.fit_transform(df['clean_text'])
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+
+print("PART 2 Done - TF-IDF and Cosine Similarity created")
+print("TF-IDF shape:", tfidf_matrix.shape)
+print("Cosine Sim shape:", cosine_sim.shape)
+
+# --------------------------------------------------
+# PART 3: Recommendation Function (Task 5)
+# --------------------------------------------------
+def recommend(item_name, top_n=5):
+    """
+    Returns top N similar movies based on content.
+    """
+    # 1. Find index of the selected movie (case-insensitive)
+    matches = df[df['title'].str.lower() == item_name.lower()]
+    
+    if matches.empty:
+        return f"Movie '{item_name}' not found in the dataset."
+    
+    idx = matches.index[0]
+    
+    # 2. Get similarity scores
+    sim_scores = list(enumerate(cosine_sim[idx]))
+    
+    # 3. Sort by similarity (highest first)
+    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
+    
+    # 4. Get top N (skip itself)
+    sim_scores = sim_scores[1:top_n+1]
+    movie_indices = [i[0] for i in sim_scores]
+    
+    # Return recommended titles
+    return df['title'].iloc[movie_indices].tolist()
+
+
+# --------------------------------------------------
+# Test the Recommendation Function
+# --------------------------------------------------
+print("\n" + "="*60)
+print("TESTING RECOMMENDATION FUNCTION")
+print("="*60)
+
+test_movies = ["Avatar", "The Dark Knight Rises", "Spider-Man"]
+
+for movie in test_movies:
+    print(f"\nRecommendations for '{movie}':")
+    results = recommend(movie, top_n=5)
+    
+    if isinstance(results, list):
+        for i, rec in enumerate(results, 1):
+            print(f"  {i}. {rec}")
+    else:
+        print(" ", results)

@@ -1,0 +1,74 @@
+# ============================================
+# COMPLETE CODE - PART 1 + PART 2 (Task 3 & 4)
+# Save this as one file (e.g. recommendation.py)
+# ============================================
+
+import pandas as pd
+import numpy as np
+import re
+import nltk
+from nltk.corpus import stopwords
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+# Download stopwords (only needed once)
+nltk.download('stopwords')
+stop_words = set(stopwords.words('english'))
+
+# --------------------------------------------------
+# PART 1: Load & Preprocess Data
+# --------------------------------------------------
+
+df = pd.read_csv('tmdb_5000_movies.csv')
+
+# Keep required columns
+df = df[['id', 'title', 'overview', 'genres']].copy()
+
+# Handle missing values
+df['overview'] = df['overview'].fillna('')
+
+# Text cleaning function
+def preprocess_text(text):
+    text = str(text).lower()
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    tokens = text.split()
+    tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+    return " ".join(tokens)
+
+# Create clean_text column
+df['clean_text'] = df['overview'].apply(preprocess_text)
+
+print("PART 1 Completed: Data loaded and cleaned")
+print(f"Dataset shape: {df.shape}")
+
+# --------------------------------------------------
+# PART 2 - Task 3: TF-IDF Vectorization
+# --------------------------------------------------
+
+tfidf = TfidfVectorizer(
+    max_features=5000,
+    ngram_range=(1, 2),
+    min_df=2
+)
+
+tfidf_matrix = tfidf.fit_transform(df['clean_text'])
+
+print("\nPART 2 - Task 3 Completed")
+print(f"TF-IDF Matrix Shape: {tfidf_matrix.shape}")
+
+# --------------------------------------------------
+# PART 2 - Task 4: Cosine Similarity
+# --------------------------------------------------
+
+cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+
+print("\nPART 2 - Task 4 Completed")
+print(f"Cosine Similarity Matrix Shape: {cosine_sim.shape}")
+
+print("\nSample Similarity (first 5 movies):")
+sample_sim = pd.DataFrame(
+    cosine_sim[:5, :5],
+    index=df['title'][:5],
+    columns=df['title'][:5]
+)
+print(sample_sim.round(3))
