@@ -1,94 +1,84 @@
 # ============================================
-# PART 4 — Simple App Interface (Streamlit)
-# Task 6: Build UI using Streamlit
+# Optimized Movie Recommendation System
+# Faster loading for Render
 # ============================================
 
 import streamlit as st
 import pandas as pd
-import numpy as np
 import re
 import nltk
-from nltk.corpus import stopwords
+import os
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Download stopwords
-nltk.download('stopwords')
-stop_words = set(stopwords.words('english'))
+# NLTK setup
+nltk_data_dir = os.path.join(os.getcwd(), "nltk_data")
+os.makedirs(nltk_data_dir, exist_ok=True)
+nltk.data.path.append(nltk_data_dir)
 
-# --------------------------------------------------
-# Load & Preprocess Data (same as before)
-# --------------------------------------------------
-@st.cache_data
-def load_and_prepare_data():
+try:
+    stop_words = set(nltk.corpus.stopwords.words('english'))
+except LookupError:
+    nltk.download('stopwords', download_dir=nltk_data_dir)
+    stop_words = set(nltk.corpus.stopwords.words('english'))
+
+@st.cache_resource
+def load_data():
     df = pd.read_csv('tmdb_5000_movies.csv')
-    df = df[['id', 'title', 'overview', 'genres']].copy()
-    df['overview'] = df['overview'].fillna('')
+    
+    # Keep only necessary columns and drop missing overviews
+    df = df[['title', 'overview']].dropna(subset=['overview']).reset_index(drop=True)
+    
+    # Take only first 2000 movies to make it faster (optional but recommended)
+    df = df.head(2000).copy()
 
-    def preprocess_text(text):
+    def clean_text(text):
         text = str(text).lower()
-        text = re.sub(r'[^a-zA-Z\s]', '', text)
-        tokens = text.split()
-        tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+        text = re.sub(r'[^a-z\s]', '', text)
+        tokens = [w for w in text.split() if w not in stop_words and len(w) > 2]
         return " ".join(tokens)
 
-    df['clean_text'] = df['overview'].apply(preprocess_text)
+    df['clean_text'] = df['overview'].apply(clean_text)
 
-    # TF-IDF
-    tfidf = TfidfVectorizer(max_features=5000, ngram_range=(1, 2), min_df=2)
+    # TF-IDF with fewer features for speed
+    tfidf = TfidfVectorizer(max_features=3000, ngram_range=(1, 1), min_df=2)
     tfidf_matrix = tfidf.fit_transform(df['clean_text'])
 
-    # Cosine Similarity
-    cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
+    cosine_sim = cosine_similarity(tfidf_matrix)
 
     return df, cosine_sim
 
-df, cosine_sim = load_and_prepare_data()
+df, cosine_sim = load_data()
 
-# --------------------------------------------------
-# Recommendation Function
-# --------------------------------------------------
-def recommend(item_name, top_n=5):
-    matches = df[df['title'].str.lower() == item_name.lower()]
-    
+def recommend(movie_name, top_n=5):
+    matches = df[df['title'].str.lower() == movie_name.lower()]
     if matches.empty:
         return []
     
     idx = matches.index[0]
-    sim_scores = list(enumerate(cosine_sim[idx]))
-    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-    sim_scores = sim_scores[1:top_n+1]
-    movie_indices = [i[0] for i in sim_scores]
-    
-    return df['title'].iloc[movie_indices].tolist()
+    scores = list(enumerate(cosine_sim[idx]))
+    scores = sorted(scores, key=lambda x: x[1], reverse=True)[1:top_n+1]
+    indices = [i[0] for i in scores]
+    return df['title'].iloc[indices].tolist()
 
-# --------------------------------------------------
-# Streamlit UI
-# --------------------------------------------------
-st.set_page_config(page_title="Movie Recommender", page_icon="🎬", layout="centered")
+# ------------------ UI ------------------
+st.set_page_config(page_title="Movie Recommender", page_icon="🎬")
 
-st.title("🎬 Content-Based Movie Recommendation System")
-st.write("Select a movie and get similar movie recommendations based on plot overview.")
+st.title("🎬 Movie Recommendation System")
+st.write("Content-based recommendations using movie overviews")
 
-# Dropdown to select movie
-movie_list = df['title'].sort_values().tolist()
-selected_movie = st.selectbox("Select a Movie:", movie_list)
+movie_list = sorted(df['title'].tolist())
+selected = st.selectbox("Select a Movie", movie_list)
 
-# Number of recommendations
-top_n = st.slider("Number of Recommendations:", min_value=3, max_value=10, value=5)
+top_n = st.slider("Number of recommendations", 3, 10, 5)
 
-# Button to generate recommendations
 if st.button("Get Recommendations"):
-    with st.spinner("Finding similar movies..."):
-        recommendations = recommend(selected_movie, top_n)
+    recs = recommend(selected, top_n)
     
-    if recommendations:
-        st.success(f"Top {top_n} movies similar to **{selected_movie}**:")
-        for i, movie in enumerate(recommendations, 1):
-            st.write(f"**{i}. {movie}**")
+    if recs:
+        st.success(f"Movies similar to **{selected}**:")
+        for i, m in enumerate(recs, 1):
+            st.write(f"**{i}. {m}**")
     else:
-        st.error("Movie not found or no recommendations available.")
-
-# Footer
-st.markdown("---")
-st.caption("Built with Python • Pandas • scikit-learn • Streamlit | Content-Based Filtering")
+        st.warning("No recommendations found.")
+        ########################
